@@ -1,0 +1,344 @@
+---
+// Astro component
+---
+
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>✊ Resist List</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h1><a href="/" class="site-title">✊ Resist List</a></h1>
+
+  <style>
+    .site-title {
+      text-decoration: none;
+      color: inherit; 
+    }
+    
+    .site-title:hover {
+      opacity: 0.8; 
+    }
+  </style>
+  <p style="text-align:right">  
+    Learn more <a href="/about/">about</a> the data.
+  </p>
+
+  
+  <div class="search-container">
+    <input 
+      type="text" 
+      id="searchInput" 
+      class="search-input" 
+      placeholder="Search for a company... " 
+      autocomplete="off"
+    >
+    
+    <div class="filters">
+      <div class="filter-group">
+        <input type="checkbox" id="filterDEI" class="filter-checkbox">
+        <label for="filterDEI">Modified DEI Programs</label>
+      </div>
+
+      <div class="filter-group">
+        <input type="checkbox" id="filterElSalvador" class="filter-checkbox">
+        <label for="filterElSalvador">Made in El Salvador</label>
+      </div>
+      
+      <div class="filter-group">
+        <input type="checkbox" id="filterTrumpCampaign" class="filter-checkbox">
+        <label for="filterTrumpCampaign">Donated to Trump Campaign</label>
+      </div>
+      
+      <div class="filter-group">
+        <input type="checkbox" id="filterTrumpInauguration" class="filter-checkbox">
+        <label for="filterTrumpInauguration">Donated to Trump Inauguration</label>
+      </div>
+      
+      <div class="filter-group">
+        <input type="checkbox" id="filterBidenInauguration" class="filter-checkbox">
+        <label for="filterBidenInauguration">Donated to Biden Inauguration</label>
+      </div>
+    </div>
+    
+    <div class="button-group">
+      <button id="resetButton" class="btn btn-secondary">Reset Filters</button>
+    </div>
+    <div>
+    </div>  
+  </div>
+  
+  <div class="filters-applied" id="filtersApplied"></div>
+  
+  <div class="results">
+    <div class="results-stats" id="resultsStats"></div>
+    <div id="resultsTable"></div>
+  </div>
+  
+  <script>
+    let companiesData = [];
+    let filteredCompanies = [];
+    let activeFilters = {
+      searchTerm: '',
+      modified_dei_programs: false,
+      made_in_el_salvador: false,
+      donated_trump_campaign: false,
+      donated_trump_inauguration: false,
+      donated_biden_inauguration: false
+    };
+    
+    const searchInput = document.getElementById('searchInput');
+    const resetButton = document.getElementById('resetButton');
+    const filtersApplied = document.getElementById('filtersApplied');
+    const resultsStats = document.getElementById('resultsStats');
+    const resultsTable = document.getElementById('resultsTable');
+    const filterCheckboxes = document.querySelectorAll('.filter-checkbox');
+    
+    async function fetchData() {
+      try {
+        resultsTable.innerHTML = '<div class="loading">Loading data...</div>';
+        
+        const response = await fetch('/boycott.json');
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        companiesData = data;
+        filteredCompanies = [...data];
+        
+        updateResultsStats();
+        renderResults();
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        resultsTable.innerHTML = `
+          <div class="no-results">
+            Error loading data: ${error.message}<br>
+            Make sure your boycott.json file is in the public directory.
+          </div>
+        `;
+      }
+    }
+    
+    function filterCompanies() {
+      filteredCompanies = companiesData.filter(company => {
+        const matchesSearch = !activeFilters.searchTerm || 
+          company.company.toLowerCase().includes(activeFilters.searchTerm.toLowerCase());
+        
+        const matchesDEI = !activeFilters.modified_dei_programs || 
+          company.modified_dei_programs === true;
+
+        const matchesElSalvador = !activeFilters.made_in_el_salvador || 
+          company.made_in_el_salvador === true;
+          
+        const matchesTrumpCampaign = !activeFilters.donated_trump_campaign || 
+          company.donated_trump_campaign === true;
+          
+        const matchesTrumpInauguration = !activeFilters.donated_trump_inauguration || 
+          company.donated_trump_inauguration === true;
+          
+        const matchesBidenInauguration = !activeFilters.donated_biden_inauguration || 
+          company.donated_biden_inauguration === true;
+        
+        return matchesSearch && matchesDEI && matchesElSalvador &&
+               matchesTrumpCampaign && matchesTrumpInauguration && 
+               matchesBidenInauguration;
+      });
+      
+      updateResultsStats();
+      renderResults();
+      renderActiveFilters();
+    }
+    
+    function updateResultsStats() {
+      resultsStats.textContent = `Showing ${filteredCompanies.length} of ${companiesData.length} companies and brands`;
+    }
+    
+    function renderResults() {
+      if (filteredCompanies.length === 0) {
+        resultsTable.innerHTML = '<div class="no-results">No matching companies found.</div>';
+        return;
+      }
+      
+      const table = document.createElement('table');
+      
+      const thead = document.createElement('thead');
+      thead.innerHTML = `
+        <tr>
+          <th>Company</th>
+          <th>Modified DEI Programs</th>
+          <th>Made in El Salvador</th>
+          <th class="tooltip-container">
+            Donated to Trump Campaign(s)
+            <div class="tooltip-text">
+              Individuals associated with the following donated primarily to Trump and other Republican campaigns without donating much to Democratic campaigns.
+            </div>
+          </th>
+          <th>Donated to 2025 Trump Inauguration</th>
+          <th>Donated to 2021 Biden Inauguration</th>
+          <th>Notes</th>
+        </tr>
+      `;
+      table.appendChild(thead);
+      
+      const tbody = document.createElement('tbody');
+      
+      filteredCompanies.forEach(company => {
+        const row = document.createElement('tr');
+        
+        row.innerHTML = `
+          <td>${company.company}</td>
+          <td class="${company.modified_dei_programs ? 'highlight-cell' : ''}">
+            <span class="tag ${company.modified_dei_programs ? 'tag-true' : 'tag-false'}">
+              ${company.modified_dei_programs ? 'Yes' : 'No'}
+            </span>
+          </td>
+          <td class="${company.made_in_el_salvador ? 'highlight-cell' : ''}">
+            <span class="tag ${company.made_in_el_salvador ? 'tag-true' : 'tag-false'}">
+              ${company.made_in_el_salvador ? 'Yes' : 'No'}
+            </span>
+          </td>
+          <td class="${company.donated_trump_campaign ? 'highlight-cell' : ''}">
+            <span class="tag ${company.donated_trump_campaign ? 'tag-true' : 'tag-false'}">
+              ${company.donated_trump_campaign ? 'Yes' : 'No'}
+            </span>
+          </td>
+          <td class="${company.donated_trump_inauguration ? 'highlight-cell' : ''}">
+            <span class="tag ${company.donated_trump_inauguration ? 'tag-true' : 'tag-false'}">
+              ${company.donated_trump_inauguration ? 'Yes' : 'No'}
+            </span>
+          </td>
+          <td class="${company.donated_biden_inauguration ? 'highlight-cell biden-column' : ''}">
+            <span class="tag ${company.donated_biden_inauguration ? 'tag-true' : 'tag-false'}">
+              ${company.donated_biden_inauguration ? 'Yes' : 'No'}
+            </span>
+          </td>
+          <td>${company.notes || ''}</td>
+        `;
+        
+        tbody.appendChild(row);
+      });
+      
+      table.appendChild(tbody);
+      resultsTable.innerHTML = '';
+      resultsTable.appendChild(table);
+    }
+    
+    function renderActiveFilters() {
+      filtersApplied.innerHTML = '';
+      
+      if (activeFilters.searchTerm) {
+        const pill = createFilterPill(`Search: "${activeFilters.searchTerm}"`, () => {
+          activeFilters.searchTerm = '';
+          searchInput.value = '';
+          filterCompanies();
+        });
+        filtersApplied.appendChild(pill);
+      }
+      
+      if (activeFilters.modified_dei_programs) {
+        const pill = createFilterPill('Modified DEI Programs', () => {
+          activeFilters.modified_dei_programs = false;
+          document.getElementById('filterDEI').checked = false;
+          filterCompanies();
+        });
+        filtersApplied.appendChild(pill);
+      }
+      
+      if (activeFilters.made_in_el_salvador) {
+        const pill = createFilterPill('Made in El Salvador', () => {
+          activeFilters.made_in_el_salvador = false;
+          document.getElementById('filterElSalvador').checked = false;
+          filterCompanies();
+        });
+        filtersApplied.appendChild(pill);
+      }
+      
+      if (activeFilters.donated_trump_campaign) {
+        const pill = createFilterPill('Donated to Trump Campaign', () => {
+          activeFilters.donated_trump_campaign = false;
+          document.getElementById('filterTrumpCampaign').checked = false;
+          filterCompanies();
+        });
+        filtersApplied.appendChild(pill);
+      }
+      
+      if (activeFilters.donated_trump_inauguration) {
+        const pill = createFilterPill('Donated to Trump Inauguration', () => {
+          activeFilters.donated_trump_inauguration = false;
+          document.getElementById('filterTrumpInauguration').checked = false;
+          filterCompanies();
+        });
+        filtersApplied.appendChild(pill);
+      }
+      
+      if (activeFilters.donated_biden_inauguration) {
+        const pill = createFilterPill('Donated to Biden Inauguration', () => {
+          activeFilters.donated_biden_inauguration = false;
+          document.getElementById('filterBidenInauguration').checked = false;
+          filterCompanies();
+        });
+        filtersApplied.appendChild(pill);
+      }
+    }
+    
+    function createFilterPill(text, onRemove) {
+      const pill = document.createElement('div');
+      pill.className = 'filter-pill';
+      
+      pill.innerHTML = `
+        ${text}
+        <button aria-label="Remove filter">×</button>
+      `;
+      
+      pill.querySelector('button').addEventListener('click', onRemove);
+      
+      return pill;
+    }
+    
+    searchInput.addEventListener('input', () => {
+      activeFilters.searchTerm = searchInput.value.trim();
+      filterCompanies();
+    });
+    
+    filterCheckboxes.forEach(checkbox => {
+      checkbox.addEventListener('change', () => {
+        activeFilters.modified_dei_programs = document.getElementById('filterDEI').checked;
+        activeFilters.made_in_el_salvador = document.getElementById('filterElSalvador').checked;
+        activeFilters.donated_trump_campaign = document.getElementById('filterTrumpCampaign').checked;
+        activeFilters.donated_trump_inauguration = document.getElementById('filterTrumpInauguration').checked;
+        activeFilters.donated_biden_inauguration = document.getElementById('filterBidenInauguration').checked;
+        
+        filterCompanies();
+      });
+    });
+    
+    resetButton.addEventListener('click', () => {
+      searchInput.value = '';
+      
+      filterCheckboxes.forEach(checkbox => {
+        checkbox.checked = false;
+      });
+      
+      activeFilters = {
+        searchTerm: '',
+        modified_dei_programs: false,
+        made_in_el_salvador: false,
+        donated_trump_campaign: false,
+        donated_trump_inauguration: false,
+        donated_biden_inauguration: false
+      };
+      
+      filteredCompanies = [...companiesData];
+      
+      updateResultsStats();
+      renderResults();
+      renderActiveFilters();
+    });
+    
+    document.addEventListener('DOMContentLoaded', fetchData);
+  </script>
+</body>
+</html>
